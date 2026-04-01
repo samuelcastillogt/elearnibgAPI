@@ -38,6 +38,18 @@ class UpdateCoursePayload(BaseModel):
     published: bool | None = None
 
 
+class CreateCourseClassPayload(BaseModel):
+    nombre_clase: str
+    descripcion: str = ""
+    url_video: str = ""
+
+
+class UpdateCourseClassPayload(BaseModel):
+    nombre_clase: str | None = None
+    descripcion: str | None = None
+    url_video: str | None = None
+
+
 class CourseClass(BaseModel):
     id: int
     id_curso: int
@@ -77,8 +89,32 @@ class CourseProgress(BaseModel):
     action_label: str
 
 BASE_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = BASE_DIR.parent.parent
+BACKEND_DIR = BASE_DIR.parent
+PROJECT_ROOT = BACKEND_DIR.parent
 FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
+
+
+def _load_env_file() -> None:
+    env_path = BACKEND_DIR / ".env"
+
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("\"'")
+
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_env_file()
 
 app = FastAPI(title="Escuela API")
 
@@ -172,6 +208,25 @@ def _generate_certificate_code(course_id: int, student_uid: str) -> str:
     return f"CERT-{course_id}-{uid_suffix}-{random_part}"
 
 
+async def _generate_unique_certificate_code(course_id: int, student_uid: str) -> str:
+    for _ in range(8):
+        candidate = _generate_certificate_code(course_id, student_uid)
+        existing = await _supabase_request(
+            method="GET",
+            table_name="certificates",
+            params={
+                "select": "id",
+                "id_certificacion": f"eq.{candidate}",
+                "limit": "1",
+            },
+        )
+
+        if not existing:
+            return candidate
+
+    raise HTTPException(status_code=500, detail="No se pudo generar un certificado unico.")
+
+
 def _get_supabase_config() -> tuple[str, str, str]:
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_ANON_KEY")
@@ -218,9 +273,27 @@ async def _supabase_request(
         raise HTTPException(status_code=502, detail="No se pudo conectar a Supabase.") from exc
 
     if response.status_code >= 400:
+        message = f"Supabase devolvio un error al consultar {table_name}."
+
+        try:
+            error_payload = response.json()
+        except ValueError:
+            error_payload = None
+
+        if isinstance(error_payload, dict):
+            error_message = error_payload.get("message")
+            error_details = error_payload.get("details")
+
+            if error_message and error_details:
+                message = f"{message} {error_message} Detalle: {error_details}"
+            elif error_message:
+                message = f"{message} {error_message}"
+        elif response.text:
+            message = f"{message} {response.text}"
+
         raise HTTPException(
             status_code=502,
-            detail=f"Supabase devolvio un error al consultar {table_name}.",
+            detail=message,
         )
 
     if not response.content:
@@ -275,6 +348,23 @@ async def _fetch_classes_for_course(course_id: int) -> list[CourseClass]:
 
     if not raw_classes:
         raise HTTPException(status_code=404, detail="Este curso no tiene clases configuradas.")
+
+    try:
+        return [_normalize_class(item) for item in raw_classes]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail="Las clases del curso tienen un formato invalido.") from exc
+
+
+async def _fetch_backoffice_classes_for_course(course_id: int) -> list[CourseClass]:
+    raw_classes = await _supabase_request(
+        method="GET",
+        table_name="classes",
+        params={
+            "select": "id,id_curso,nombre_clase,descripcion,url_video",
+            "id_curso": f"eq.{course_id}",
+            "order": "id.asc",
+        },
+    )
 
     try:
         return [_normalize_class(item) for item in raw_classes]
@@ -362,7 +452,19 @@ async def _ensure_student_progress(course: Course, student_uid: str) -> CoursePr
     pending_classes = len(student_classes) - completed_classes
 
     if pending_classes == 0 and not enrollment.status:
-        certificate_code = _generate_certificate_code(course.id, student_uid)
+        certificate_code = await _generate_unique_certificate_code(course.id, student_uid)
+
+        await _supabase_request(
+            method="POST",
+            table_name="certificates",
+            payload={
+                "id_alumno": student_uid,
+                "id_curso": course.id,
+                "id_certificacion": certificate_code,
+            },
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+
         updated_enrollment_raw = await _supabase_request(
             method="PATCH",
             table_name="course_student",
@@ -501,6 +603,130 @@ async def update_backoffice_course(course_id: int, payload: UpdateCoursePayload)
         return _normalize_course(updated[0])
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=502, detail="No se pudo normalizar el curso actualizado.") from exc
+
+
+@app.post("/api/backoffice/courses/{course_id}/classes", response_model=CourseClass)
+async def create_backoffice_course_class(course_id: int, payload: CreateCourseClassPayload) -> CourseClass:
+    if course_id <= 0:
+        raise HTTPException(status_code=400, detail="El id del curso es invalido.")
+
+    course = await _fetch_courses_from_supabase(course_ref=str(course_id), include_unpublished=True)
+    if not course:
+        raise HTTPException(status_code=404, detail="No encontramos el curso para asociar la clase.")
+
+    class_name = payload.nombre_clase.strip()
+    if not class_name:
+        raise HTTPException(status_code=400, detail="El nombre de la clase es obligatorio.")
+
+    created = await _supabase_request(
+        method="POST",
+        table_name="classes",
+        payload={
+            "id_curso": course_id,
+            "nombre_clase": class_name,
+            "descripcion": payload.descripcion.strip(),
+            "url_video": payload.url_video.strip(),
+        },
+        prefer="return=representation",
+    )
+
+    try:
+        return _normalize_class(created[0])
+    except (IndexError, KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail="No se pudo normalizar la clase creada.") from exc
+
+
+@app.get("/api/backoffice/courses/{course_id}/classes", response_model=list[CourseClass])
+async def list_backoffice_course_classes(course_id: int) -> list[CourseClass]:
+    if course_id <= 0:
+        raise HTTPException(status_code=400, detail="El id del curso es invalido.")
+
+    courses = await _fetch_courses_from_supabase(course_ref=str(course_id), include_unpublished=True)
+    if not courses:
+        raise HTTPException(status_code=404, detail="No encontramos el curso solicitado.")
+
+    return await _fetch_backoffice_classes_for_course(course_id)
+
+
+@app.patch("/api/backoffice/courses/{course_id}/classes/{class_id}", response_model=CourseClass)
+async def update_backoffice_course_class(course_id: int, class_id: int, payload: UpdateCourseClassPayload) -> CourseClass:
+    if course_id <= 0:
+        raise HTTPException(status_code=400, detail="El id del curso es invalido.")
+    if class_id <= 0:
+        raise HTTPException(status_code=400, detail="El id de la clase es invalido.")
+
+    updates: dict[str, Any] = {}
+
+    if payload.nombre_clase is not None:
+        class_name = payload.nombre_clase.strip()
+        if not class_name:
+            raise HTTPException(status_code=400, detail="El nombre de la clase no puede quedar vacio.")
+        updates["nombre_clase"] = class_name
+
+    if payload.descripcion is not None:
+        updates["descripcion"] = payload.descripcion.strip()
+
+    if payload.url_video is not None:
+        updates["url_video"] = payload.url_video.strip()
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="No se recibieron cambios para actualizar la clase.")
+
+    existing = await _supabase_request(
+        method="GET",
+        table_name="classes",
+        params={
+            "select": "id,id_curso",
+            "id": f"eq.{class_id}",
+            "id_curso": f"eq.{course_id}",
+            "limit": "1",
+        },
+    )
+
+    if not existing:
+        raise HTTPException(status_code=404, detail="No encontramos la clase para este curso.")
+
+    updated = await _supabase_request(
+        method="PATCH",
+        table_name="classes",
+        params={
+            "id": f"eq.{class_id}",
+            "id_curso": f"eq.{course_id}",
+        },
+        payload=updates,
+        prefer="return=representation",
+    )
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="No encontramos la clase para este curso.")
+
+    try:
+        return _normalize_class(updated[0])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail="No se pudo normalizar la clase actualizada.") from exc
+
+
+@app.delete("/api/backoffice/courses/{course_id}/classes/{class_id}")
+async def delete_backoffice_course_class(course_id: int, class_id: int) -> dict[str, bool]:
+    if course_id <= 0:
+        raise HTTPException(status_code=400, detail="El id del curso es invalido.")
+    if class_id <= 0:
+        raise HTTPException(status_code=400, detail="El id de la clase es invalido.")
+
+    deleted = await _supabase_request(
+        method="DELETE",
+        table_name="classes",
+        params={
+            "id": f"eq.{class_id}",
+            "id_curso": f"eq.{course_id}",
+        },
+        prefer="return=representation",
+    )
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail="No encontramos la clase para este curso.")
+
+    return {"deleted": True}
 
 
 @app.post(

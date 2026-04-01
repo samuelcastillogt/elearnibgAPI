@@ -9,6 +9,7 @@ erDiagram
   courses ||--o{ classes : contiene
   courses ||--o{ course_student : asigna
   courses ||--o{ classes_student : rastrea
+  courses ||--o{ certificates : certifica
   classes ||--o{ classes_student : progreso
 
   courses {
@@ -45,6 +46,14 @@ erDiagram
     integer time
     boolean status
   }
+
+  certificates {
+    bigint id PK
+    text id_alumno
+    bigint id_curso FK
+    text id_certificacion
+    timestamptz fecha_emision
+  }
 ```
 
 ## Flujo funcional
@@ -71,6 +80,7 @@ sequenceDiagram
   API->>DB: Marca clase en status=true
   API->>DB: Recalcula pendientes
   alt Pendientes = 0
+    API->>DB: Inserta certificado en certificates
     API->>DB: Actualiza course_student.status=true
     API->>DB: Genera y guarda id_certificado
   end
@@ -92,7 +102,10 @@ sequenceDiagram
 - Se generan registros en `classes_student` por cada clase del curso para ese alumno.
 - El avance del curso se calcula con base en `classes_student.status`.
 - Cuando no quedan clases pendientes, `course_student.status` pasa a `true` y se guarda `id_certificado`.
+- Al finalizar el curso, se crea un registro en `certificates` con `id_alumno` y `id_certificacion` unico.
 - En frontend:
-  - Boton principal muestra `Iniciar curso`, `Continuar` o `Ver certificado`.
-  - Cada clase permite marcarse como completada.
+  - La pagina del curso abre un reproductor de YouTube con listado lateral de clases.
+  - Se selecciona automaticamente la siguiente clase tomando como referencia la ultima clase completada.
+  - Cada clase permite marcarse como completada manualmente.
+  - Al terminar un video se marca la clase actual como completada (si estaba pendiente) y avanza a la siguiente.
   - Se muestra el codigo de certificado cuando el curso esta finalizado.
