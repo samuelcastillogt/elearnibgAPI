@@ -3,12 +3,12 @@ import re
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -789,7 +789,27 @@ async def complete_class(course_ref: str, student_uid: str, class_id: int) -> Co
 
 
 if FRONTEND_DIST:
-    app.mount("/app", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend-app")
+    frontend_dist = cast(Path, FRONTEND_DIST)
+
+    app.mount("/app", StaticFiles(directory=frontend_dist, html=True), name="frontend-app")
+
+    frontend_assets_dir = frontend_dist / "assets"
+    if frontend_assets_dir.exists() and frontend_assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=frontend_assets_dir), name="frontend-assets-root")
+
+    @app.get("/vite.svg")
+    def frontend_vite_logo() -> FileResponse:
+        asset = frontend_dist / "vite.svg"
+        if not asset.exists():
+            raise HTTPException(status_code=404, detail="Asset no encontrado.")
+        return FileResponse(asset)
+
+    @app.get("/google.png")
+    def frontend_google_logo() -> FileResponse:
+        asset = frontend_dist / "google.png"
+        if not asset.exists():
+            raise HTTPException(status_code=404, detail="Asset no encontrado.")
+        return FileResponse(asset)
 else:
 
     @app.get("/app", response_class=HTMLResponse)
