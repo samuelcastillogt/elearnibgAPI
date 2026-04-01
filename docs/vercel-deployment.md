@@ -36,3 +36,20 @@ npm run build:backend
 ```
 
 Para despliegue en Vercel no hace falta ese modo; se usa base `/`.
+
+## Si solo despliegas el repo `backend`
+
+Si tu proyecto de Vercel apunta unicamente al repo `backend`, la API no tendra acceso a `../frontend/dist`.
+
+En ese caso debes copiar el build del frontend dentro del repo backend en una de estas rutas:
+
+1. `backend/app/static/app` (recomendada)
+2. `backend/frontend/dist`
+
+Comando sugerido (desde la raiz monorepo):
+
+```bash
+cd frontend && npm run build && mkdir -p ../backend/app/static/app && cp -R dist/. ../backend/app/static/app/
+```
+
+Con eso, la ruta `/app` sera servida por FastAPI desde el backend desplegado.

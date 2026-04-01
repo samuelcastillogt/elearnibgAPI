@@ -91,7 +91,22 @@ class CourseProgress(BaseModel):
 BASE_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = BASE_DIR.parent
 PROJECT_ROOT = BACKEND_DIR.parent
-FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
+
+FRONTEND_DIST_CANDIDATES = [
+    PROJECT_ROOT / "frontend" / "dist",
+    BACKEND_DIR / "frontend" / "dist",
+    BASE_DIR / "static" / "app",
+]
+
+
+def _find_frontend_dist() -> Path | None:
+    for candidate in FRONTEND_DIST_CANDIDATES:
+        if candidate.exists() and candidate.is_dir():
+            return candidate
+    return None
+
+
+FRONTEND_DIST = _find_frontend_dist()
 
 
 def _load_env_file() -> None:
@@ -773,7 +788,7 @@ async def complete_class(course_ref: str, student_uid: str, class_id: int) -> Co
     return await _ensure_student_progress(course, student_uid.strip())
 
 
-if FRONTEND_DIST.exists():
+if FRONTEND_DIST:
     app.mount("/app", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend-app")
 else:
 
@@ -781,5 +796,5 @@ else:
     def app_not_built():
         return """
         <h1>Frontend no compilado</h1>
-        <p>Ejecuta <code>cd frontend && npm run build</code> para generar la app de React.</p>
+        <p>Genera y copia el build al backend en <code>backend/app/static/app</code> o en <code>backend/frontend/dist</code>.</p>
         """
