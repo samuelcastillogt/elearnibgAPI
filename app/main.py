@@ -130,6 +130,16 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
+def _render_template(name: str, request: Request, context: dict[str, Any] | None = None) -> HTMLResponse:
+    safe_context = context or {}
+
+    try:
+        return templates.TemplateResponse(request=request, name=name, context=safe_context)
+    except TypeError:
+        legacy_context = {"request": request, **safe_context}
+        return templates.TemplateResponse(name, legacy_context)
+
+
 def _normalize_course(payload: dict[str, Any]) -> Course:
     return Course(
         id=int(payload["id"]),
@@ -492,7 +502,7 @@ async def _ensure_student_progress(course: Course, student_uid: str) -> CoursePr
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return _render_template("index.html", request)
 
 
 @app.get("/api/courses", response_model=list[Course])
