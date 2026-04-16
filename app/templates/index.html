@@ -7,49 +7,194 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Sora:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
-    <main class="page">
+    <main class="page-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <a class="brand" href="/">Elearning</a>
+          <span class="brand-copy">Escuela de tecnologia</span>
+        </div>
+
+        <nav class="topnav">
+          <a href="#escuelas">Escuelas</a>
+          <a href="#beneficios">Beneficios</a>
+          <a href="#planes">Planes</a>
+        </nav>
+
+        <a class="cta cta-small" href="/app">Acceder</a>
+      </header>
+
       <section class="hero">
         <div class="hero-copy">
-          <span class="badge">Escuela Digital</span>
-          <h1>Learn New Skills.<br />Advance Your Career.<br /><span>Anytime, Anywhere.</span></h1>
-          <p>Domina desarrollo web, datos y diseño con rutas de estudio guiadas por expertos.</p>
-          <a class="cta" href="/app">Iniciar ahora</a>
+          <span class="badge">Plataforma de aprendizaje</span>
+          <h1>
+            La escuela de tecnologia
+            <span>para avanzar con enfoque practico</span>
+          </h1>
+          <p>
+            Aprende con rutas claras, clases cortas y seguimiento real de tu progreso. Misma paleta,
+            nueva direccion visual.
+          </p>
+
+          <div class="hero-search">
+            <input type="text" placeholder="¿Que quieres aprender hoy?" />
+            <a class="cta" href="/app">Explorar</a>
+          </div>
+
+          <small>Inicia sesion para continuar tu ruta de aprendizaje.</small>
         </div>
-        <div class="hero-image"></div>
+
+        <aside class="hero-panel">
+          <div class="device-card">
+            <div class="device-screen">
+              <div class="device-media"></div>
+              <div class="device-lines">
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+            <div class="device-list">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+          <p>Visual de apoyo del producto sin salir de la gama verde y neutros.</p>
+        </aside>
       </section>
 
-      <section class="content-grid">
-        <article class="card">
-          <h2>Find Courses That Fit Your Passion</h2>
-          <ul>
-            <li>Design & Creativity</li>
-            <li>Tech Programming</li>
-            <li>Business & Product</li>
-            <li>Personal Growth</li>
+      <section id="escuelas" class="section">
+        <div class="section-copy center">
+          <span class="section-kicker">Escuelas</span>
+          <h2>Todas las rutas de aprendizaje que necesitas</h2>
+          <p>Organizadas por escuelas y pensadas para progresar con claridad.</p>
+        </div>
+
+        <div class="school-grid">
+          <article class="school-card">
+            <div class="school-icon"></div>
+            <h3>Desarrollo Web</h3>
+            <p>Front-end, back-end y proyectos guiados.</p>
+          </article>
+          <article class="school-card">
+            <div class="school-icon"></div>
+            <h3>English Academy</h3>
+            <p>Ingles aplicado a comunicacion y trabajo.</p>
+          </article>
+          <article class="school-card">
+            <div class="school-icon"></div>
+            <h3>Marketing Digital</h3>
+            <p>Estrategia, performance y contenido.</p>
+          </article>
+          <article class="school-card">
+            <div class="school-icon"></div>
+            <h3>IA y Datos</h3>
+            <p>Modelos, analitica y herramientas actuales.</p>
+          </article>
+          <article class="school-card">
+            <div class="school-icon"></div>
+            <h3>Ciberseguridad</h3>
+            <p>Fundamentos, buenas practicas y defensa.</p>
+          </article>
+          <article class="school-card">
+            <div class="school-icon"></div>
+            <h3>Producto y UX</h3>
+            <p>Diseno, validacion y experiencia digital.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="beneficios" class="section split">
+        <article class="panel feature-panel">
+          <span class="section-kicker">Porque funciona</span>
+          <h2>Escala el aprendizaje con una experiencia mas clara y moderna</h2>
+          <ul class="benefit-list">
+            <li>Aprende con sesiones cortas y practicas.</li>
+            <li>Avanza por rutas guiadas con objetivos concretos.</li>
+            <li>Mide tu progreso por curso y por modulo.</li>
+            <li>Estudia desde cualquier dispositivo.</li>
+            <li>Organiza el aprendizaje de tu equipo.</li>
           </ul>
         </article>
 
-        <article class="card pricing">
-          <h3>One Subscription</h3>
-          <div class="plans">
-            <div>
-              <small>Basic</small>
-              <strong>$19</strong>
-              <p>Acceso mensual</p>
-            </div>
-            <div>
-              <small>Pro</small>
-              <strong>$99</strong>
-              <p>Acceso anual</p>
-            </div>
+        <article class="panel certifications-panel">
+          <span class="section-kicker">Certificaciones</span>
+          <div class="certificate-card">
+            <h3>Ingles profesional</h3>
+            <p>Ruta guiada para fortalecer tu nivel laboral.</p>
+          </div>
+          <div class="certificate-card">
+            <h3>Google Cloud</h3>
+            <p>Preparacion enfocada en herramientas de nube.</p>
+          </div>
+          <div class="certificate-card">
+            <h3>Seguridad y tecnologia</h3>
+            <p>Contenido practico para equipos tecnicos.</p>
           </div>
         </article>
+      </section>
+
+      <section class="section teachers">
+        <div class="section-copy">
+          <span class="section-kicker inverse">Profesores</span>
+          <h2>Nuestros profesores son expertos de la industria</h2>
+        </div>
+
+        <div class="teacher-grid">
+          <article class="teacher-card">
+            <div class="teacher-photo"></div>
+            <h3>Gina Pedraza</h3>
+            <p>Learning Specialist</p>
+          </article>
+          <article class="teacher-card">
+            <div class="teacher-photo"></div>
+            <h3>Idir Ouab</h3>
+            <p>Senior Solutions Engineer</p>
+          </article>
+          <article class="teacher-card">
+            <div class="teacher-photo"></div>
+            <h3>Frida Ruhi</h3>
+            <p>Especialista IA</p>
+          </article>
+          <article class="teacher-card">
+            <div class="teacher-photo"></div>
+            <h3>Juan Pablo Rojas</h3>
+            <p>CEO & Mentor</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="planes" class="section">
+        <div class="section-copy center">
+          <span class="section-kicker">Planes</span>
+          <h2>Elige el plan ideal para ti</h2>
+        </div>
+
+        <div class="plan-grid">
+          <article class="plan-card">
+            <small>Plan Basico</small>
+            <strong>Q 289/mes</strong>
+            <p>Para estudio individual y acceso continuo.</p>
+            <a class="cta full" href="/app">Comenzar</a>
+          </article>
+          <article class="plan-card featured">
+            <small>Plan Expert</small>
+            <strong>Q 1,890/anio</strong>
+            <p>Para profundizar en rutas completas.</p>
+            <a class="cta full" href="/app">Comenzar</a>
+          </article>
+          <article class="plan-card">
+            <small>Plan Equipos</small>
+            <strong>Q 2,290/anio</strong>
+            <p>Para capacitar equipos con seguimiento.</p>
+            <a class="cta full" href="/app">Comenzar</a>
+          </article>
+        </div>
       </section>
     </main>
   </body>

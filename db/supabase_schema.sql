@@ -1,3 +1,12 @@
+create table if not exists public.categories (
+  id bigint generated always as identity primary key,
+  name text unique not null,
+  created_at timestamptz not null default timezone('utc', now())
+);
+
+create unique index if not exists idx_categories_name_unique
+  on public.categories (name);
+
 create table if not exists public.courses (
   id bigint generated always as identity primary key,
   slug text unique not null,
@@ -11,6 +20,13 @@ create table if not exists public.courses (
 alter table public.courses
   add column if not exists published boolean not null default true;
 
+insert into public.categories (name)
+values
+  ('Frontend'),
+  ('Backend'),
+  ('Diseno')
+on conflict (name) do nothing;
+
 insert into public.courses (slug, title, category, published, progress)
 values
   ('react-desde-cero', 'React desde Cero', 'Frontend', true, 42),
@@ -21,6 +37,13 @@ on conflict (slug) do update set
   category = excluded.category,
   published = excluded.published,
   progress = excluded.progress;
+
+insert into public.categories (name)
+select distinct c.category
+from public.courses c
+where c.category is not null
+  and btrim(c.category) <> ''
+on conflict (name) do nothing;
 
 create table if not exists public.classes (
   id bigint generated always as identity primary key,

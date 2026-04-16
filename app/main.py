@@ -31,6 +31,11 @@ class CreateCoursePayload(BaseModel):
     slug: str | None = None
 
 
+class Category(BaseModel):
+    id: int
+    name: str
+
+
 class UpdateCoursePayload(BaseModel):
     title: str | None = None
     category: str | None = None
@@ -163,6 +168,13 @@ def _normalize_course(payload: dict[str, Any]) -> Course:
         category=str(payload["category"]),
         progress=int(payload.get("progress", 0)),
         published=bool(payload.get("published", True)),
+    )
+
+
+def _normalize_category(payload: dict[str, Any]) -> Category:
+    return Category(
+        id=int(payload["id"]),
+        name=str(payload["name"]),
     )
 
 
@@ -360,6 +372,22 @@ async def _fetch_courses_from_supabase(
         raise HTTPException(status_code=502, detail="Los cursos en Supabase tienen un formato invalido.") from exc
 
 
+async def _fetch_categories_from_supabase() -> list[Category]:
+    raw_categories = await _supabase_request(
+        method="GET",
+        table_name="categories",
+        params={
+            "select": "id,name",
+            "order": "name.asc",
+        },
+    )
+
+    try:
+        return [_normalize_category(item) for item in raw_categories]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail="Las categorias en Supabase tienen un formato invalido.") from exc
+
+
 async def _fetch_classes_for_course(course_id: int) -> list[CourseClass]:
     raw_classes = await _supabase_request(
         method="GET",
@@ -523,6 +551,11 @@ def index(request: Request):
 @app.get("/api/courses", response_model=list[Course])
 async def list_courses() -> list[Course]:
     return await _fetch_courses_from_supabase()
+
+
+@app.get("/api/categories", response_model=list[Category])
+async def list_categories() -> list[Category]:
+    return await _fetch_categories_from_supabase()
 
 
 @app.get("/api/courses/{course_ref}", response_model=Course)
