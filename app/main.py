@@ -146,6 +146,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def disable_cache_for_web_assets(request: Request, call_next):
+    response = await call_next(request)
+
+    if request.url.path == "/" or request.url.path.startswith(("/static", "/app", "/assets")):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+
+    return response
+
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
@@ -348,6 +360,7 @@ async def _supabase_request(
 async def _fetch_courses_from_supabase(
     course_ref: str | None = None,
     include_unpublished: bool = False,
+    title_query: str | None = None,
 ) -> list[Course]:
     table_name = os.getenv("SUPABASE_COURSES_TABLE", "courses")
     params = {
@@ -363,6 +376,9 @@ async def _fetch_courses_from_supabase(
             params["id"] = f"eq.{course_ref}"
         else:
             params["slug"] = f"eq.{course_ref}"
+
+    if title_query:
+        params["title"] = f"ilike.*{title_query}*"
 
     data = await _supabase_request(method="GET", table_name=table_name, params=params)
 
@@ -425,7 +441,11 @@ async def _fetch_backoffice_classes_for_course(course_id: int) -> list[CourseCla
         raise HTTPException(status_code=502, detail="Las clases del curso tienen un formato invalido.") from exc
 
 
-async def _ensure_student_progress(course: Course, student_uid: str) -> CourseProgress:
+async def _ensure_student_progress(
+    course: Course,
+    student_uid: str,
+    create_if_missing: bool = True,
+) -> CourseProgress:
     classes = await _fetch_classes_for_course(course.id)
 
     raw_enrollment = await _supabase_request(
@@ -442,6 +462,9 @@ async def _ensure_student_progress(course: Course, student_uid: str) -> CoursePr
     if raw_enrollment:
         enrollment = _normalize_course_student(raw_enrollment[0])
     else:
+        if not create_if_missing:
+            raise HTTPException(status_code=404, detail="Este curso no esta asignado al alumno.")
+
         created_enrollment = await _supabase_request(
             method="POST",
             table_name="course_student",
@@ -545,12 +568,19 @@ async def _ensure_student_progress(course: Course, student_uid: str) -> CoursePr
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return _render_template("index.html", request)
+    return _render_template(
+        "index.html",
+        request,
+        {
+            "asset_version": int(datetime.now(timezone.utc).timestamp()),
+        },
+    )
 
 
 @app.get("/api/courses", response_model=list[Course])
-async def list_courses() -> list[Course]:
-    return await _fetch_courses_from_supabase()
+async def list_courses(q: str | None = None) -> list[Course]:
+    search_query = q.strip() if q else None
+    return await _fetch_courses_from_supabase(title_query=search_query)
 
 
 @app.get("/api/categories", response_model=list[Category])
@@ -576,7 +606,19 @@ async def get_course_progress(course_ref: str, student_uid: str) -> CourseProgre
     if not courses:
         raise HTTPException(status_code=404, detail="No encontramos ese curso.")
 
-    return await _ensure_student_progress(courses[0], student_uid.strip())
+    return await _ensure_student_progress(courses[0], student_uid.strip(), create_if_missing=False)
+
+
+@app.post("/api/courses/{course_ref}/students/{student_uid}/enroll", response_model=CourseProgress)
+async def enroll_course_for_student(course_ref: str, student_uid: str) -> CourseProgress:
+    if not student_uid.strip():
+        raise HTTPException(status_code=400, detail="El id del alumno es obligatorio.")
+
+    courses = await _fetch_courses_from_supabase(course_ref=course_ref)
+    if not courses:
+        raise HTTPException(status_code=404, detail="No encontramos ese curso.")
+
+    return await _ensure_student_progress(courses[0], student_uid.strip(), create_if_missing=True)
 
 
 @app.get("/api/backoffice/courses", response_model=list[Course])
@@ -800,7 +842,7 @@ async def complete_class(course_ref: str, student_uid: str, class_id: int) -> Co
         raise HTTPException(status_code=404, detail="No encontramos ese curso.")
 
     course = courses[0]
-    progress = await _ensure_student_progress(course, student_uid.strip())
+    progress = await _ensure_student_progress(course, student_uid.strip(), create_if_missing=False)
 
     target_class = next((item for item in progress.classes if item.id_clase == class_id), None)
     if not target_class:
@@ -818,7 +860,7 @@ async def complete_class(course_ref: str, student_uid: str, class_id: int) -> Co
             prefer="return=representation",
         )
 
-    return await _ensure_student_progress(course, student_uid.strip())
+    return await _ensure_student_progress(course, student_uid.strip(), create_if_missing=False)
 
 
 if FRONTEND_DIST:
